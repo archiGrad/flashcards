@@ -110,7 +110,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
 <script>
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
-document.addEventListener('contextmenu',e=>e.preventDefault());
+navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
+document.addEventListener('contextmenu',e=>{if(!e.target.matches('textarea,input'))e.preventDefault()});
 const $=s=>document.querySelector(s);
 const grid=$('#grid');
 let mode=1;
