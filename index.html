@@ -34,6 +34,9 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #trdir{color:#eee;font-size:12px;letter-spacing:.1em;cursor:pointer;white-space:nowrap}
 #trq{background:none;border:none;border-bottom:1px solid #555;outline:none;color:#eee;font-size:14px;width:110px;user-select:text;-webkit-user-select:text;touch-action:auto}
 #trres{color:#f2d51e;font-size:14px;max-width:36vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ebtns{position:absolute;top:50%;right:12px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:8}
+#ebtns span{background:rgba(20,18,15,.75);color:#ddd;font-size:12px;letter-spacing:.15em;text-transform:uppercase;padding:9px 12px;cursor:pointer}
+#ebtns span:active{color:#fff}
 #tools{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:14px;z-index:8;align-items:center}
 .dot{width:30px;height:30px;border-radius:50%;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.3);opacity:.4;transition:opacity .15s,transform .15s;color:#f0eadd;display:grid;place-items:center;font-size:15px}
 .dot.on{opacity:1;transform:scale(1.12)}
@@ -73,6 +76,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   <div class="pane" id="editpane">
     <div id="editwrap"><canvas id="main"></canvas><canvas id="live"></canvas></div>
     <canvas id="miniprev"></canvas>
+    <div id="ebtns"><span id="bsave">save</span><span id="breset">reset</span><span id="bcancel">cancel</span></div>
     <div id="tbox"><textarea id="tin" autocomplete="off"></textarea><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i><b data-e="n"></b><b data-e="e"></b><b data-e="s"></b><b data-e="w"></b><div id="tpop"><span data-tl="nl">→ nl</span><span data-tl="tr">→ tr</span><span data-tl="wikt">wikt</span></div></div>
     <div id="trbar"><span id="trdir">tr→nl</span><input id="trq" autocomplete="off" placeholder="translate"><span id="trres"></span></div>
     <div id="tools">
@@ -135,7 +139,7 @@ const dbPut=c=>db&&tx().put(c);
 const dbDel=id=>db&&tx().delete(id);
 const dbClear=()=>db&&tx().clear();
 
-const PAPERS=['#1fa055','#2f58b8','#f2d51e','#c536b0','#7a3fbf','#29b6c8','#8fd943','#e0342e','#f291be','#f28c1f','#1c8c74','#f0ede4','#1b2f5e','#12363b','#5e2a1c','#3c1f52','#22221f','#7d1f3c','#4a5d23','#b8860b','#8b4513','#556b2f','#e6c8a0','#c9d6df','#f5e6cc','#d94f70','#6fb1a0','#e8e337','#9c27b0','#03a9f4'];
+const PAPERS=['#1fa055','#2f58b8','#f2d51e','#c536b0','#7a3fbf','#29b6c8','#8fd943','#e0342e','#f291be','#f28c1f','#1c8c74','#1b2f5e','#12363b','#5e2a1c','#3c1f52','#22221f','#7d1f3c','#4a5d23','#b8860b','#8b4513','#556b2f','#d94f70','#6fb1a0','#e8e337','#9c27b0','#03a9f4'];
 const rnd=a=>a[Math.floor(Math.random()*a.length)];
 const lum=h=>{const n=parseInt(h.slice(1),16);return(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255};
 document.querySelectorAll('.slip').forEach(s=>{
@@ -522,7 +526,7 @@ function setLiveStyle(t){
   liveC.style.mixBlendMode=t==='mark'?'multiply':'normal';
 }
 function clearLive(){liveC.style.opacity=1;liveC.style.mixBlendMode='normal';lx.clearRect(0,0,W,H)}
-let st=null,edgeNav=null,lastEditTap=0;
+let st=null;
 function liveSeg(a,b){
   lx.save();
   shapePath(lx,cur===1,W,H);lx.clip();
@@ -537,24 +541,16 @@ function liveSeg(a,b){
 liveC.addEventListener('pointerdown',e=>{
   liveC.setPointerCapture(e.pointerId);
   if(tSwallow){tSwallow=false;return}
-  if(e.clientX<26||e.clientX>innerWidth-26){edgeNav={x:e.clientX};return}
-  const now=Date.now();
-  if(now-lastEditTap<300){
-    lastEditTap=0;
-    saveCard();
-    return;
-  }
-  lastEditTap=now;
   const r=liveC.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
   const tn=sides[cur].find(s=>s.tool==='text'&&hit(s,x,y));
   if(tn){openText(tn);return}
   if(tool==='erase'){st={erase:true};eraseAt(x,y);return}
-  st={tool,color,pts:[[x/W,y/H]],cx:e.clientX,cy:e.clientY,t:now,sx:x,sy:y};
+  st={tool,color,pts:[[x/W,y/H]],sx:x,sy:y};
   setLiveStyle(tool);
   liveSeg([x,y],[x,y]);
 });
 liveC.addEventListener('pointermove',e=>{
-  if(edgeNav||!st)return;
+  if(!st)return;
   const r=liveC.getBoundingClientRect();
   if(st.erase){eraseAt(e.clientX-r.left,e.clientY-r.top);return}
   for(const ev of(e.getCoalescedEvents?e.getCoalescedEvents():[e])){
@@ -565,27 +561,19 @@ liveC.addEventListener('pointermove',e=>{
     st.sx=nx;st.sy=ny;
   }
 });
-liveC.addEventListener('pointerup',e=>{
-  if(edgeNav){
-    if(e.clientX-edgeNav.x<-60)setMode(1);
-    edgeNav=null;return;
-  }
+liveC.addEventListener('pointerup',()=>{
   if(!st)return;
   if(st.erase){st=null;return}
-  const dx=e.clientX-st.cx,dy=e.clientY-st.cy,dt=Date.now()-st.t;
   const s=st;st=null;
-  if(dx<-100&&Math.abs(dy)<40&&dt<220){clearLive();return setMode(1)}
-  if(s.pts.length>1){
-    sides[cur].push(s);
-    const c=bx[cur];
-    c.save();
-    shapePath(c,cur===1,W,H);c.clip();
-    c.globalCompositeOperation=s.tool==='mark'?'multiply':'source-over';
-    c.globalAlpha=s.tool==='mark'?.66:.96;
-    c.drawImage(liveC,0,0,W,H);
-    c.restore();
-    blit();
-  }
+  sides[cur].push(s);
+  const c=bx[cur];
+  c.save();
+  shapePath(c,cur===1,W,H);c.clip();
+  c.globalCompositeOperation=s.tool==='mark'?'multiply':'source-over';
+  c.globalAlpha=s.tool==='mark'?.66:.96;
+  c.drawImage(liveC,0,0,W,H);
+  c.restore();
+  blit();
   clearLive();
 });
 
@@ -615,9 +603,12 @@ function updatePrev(){
   pcv.width=180;pcv.height=Math.round(180*b.height/b.width);
   px2.drawImage(b,0,0,pcv.width,pcv.height);
 }
+$('#bsave').onpointerdown=e=>{e.stopPropagation();saveCard()};
+$('#breset').onpointerdown=e=>{e.stopPropagation();sides=[[],[]];rebuild(0);rebuild(1);blit();updatePrev()};
+$('#bcancel').onpointerdown=e=>{e.stopPropagation();resetEdit();setMode(1)};
 function saveCard(){
   if(!sides[0].length&&!sides[1].length){resetEdit();setMode(1);return}
-  const front=snapSide(0),back=snapSide(1),wasRewrite=!!rewriteTarget;
+  const front=snapSide(0),back=snapSide(1),wasRewrite=!!rewriteTarget,shownSide=cur;
   const strokes=structuredClone(sides);
   let c;
   if(rewriteTarget){c=Object.assign(rewriteTarget,{front,back,shape,paper,strokes})}
@@ -627,7 +618,11 @@ function saveCard(){
   flash(wasRewrite?'rewritten':'saved');
   resetEdit();
   setMode(1);
-  if(!current)newCard();else renderCard();
+  current=c;showing=shownSide;
+  hist.push({c,s:showing});
+  if(hist.length>20)hist.shift();
+  hp=hist.length-1;
+  renderCard();
 }
 
 const bp=$('#bowlpane');
